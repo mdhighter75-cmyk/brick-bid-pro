@@ -170,6 +170,23 @@
         </button>
       </div>
     </div>
+
+  <!-- Pro Unlock Modal -->
+  <div id="proModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 section-enter">
+      <div class="text-center">
+        <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+          <svg class="w-7 h-7 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        </div>
+        <h3 class="text-xl font-bold text-slate-900">Unlock Pro PDF Quotes</h3>
+        <p class="text-sm text-slate-600 mt-2 mb-4">Generate branded PDF bids with your logo, unlimited jobs. $9/mo. Cancel anytime.</p>
+        <button id="proCheckoutBtn" class="w-full bg-red-700 hover:bg-red-800 text-white font-semibold py-3 rounded-xl text-sm mb-2 transition active:scale-95">
+          Unlock Pro with Stripe →
+        </button>
+        <button id="proCloseBtn" class="w-full text-slate-500 text-xs py-2">Maybe later</button>
+        <p class="text-[11px] text-slate-400 mt-3">Already paid? <button id="proRestoreBtn" class="underline">Restore Pro</button></p>
+      </div>
+    </div>
   </div>
 
   <!-- 0. Settings Section -->
@@ -515,6 +532,15 @@
   </div>
 </div>
 
+
+<script>
+  // ===== BRICK BID PRO - STRIPE CONFIG =====
+  // Replace this with your real Stripe Payment Link
+  // Create one at: https://dashboard.stripe.com/payment-links
+  // Set price to $9.00 / month, and set "After payment" -> redirect to:
+  // https://brick-bid-pro.vercel.app/?pro=1
+  const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/5kQfZj0Ko1uC634eGwfS04";
+</script>
 <script>
 const { jsPDF } = window.jspdf;
 
@@ -974,8 +1000,31 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   }
 });
 
+// ===== PRO CHECK =====
+function isPro() {
+  return localStorage.getItem('bbp_pro') === 'true';
+}
+function showProModal() {
+  document.getElementById('proModal').classList.remove('hidden');
+  document.getElementById('proModal').classList.add('flex');
+}
+function hideProModal() {
+  document.getElementById('proModal').classList.add('hidden');
+  document.getElementById('proModal').classList.remove('flex');
+}
+// Auto-unlock from Stripe redirect ?pro=1
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('pro') === '1') {
+    localStorage.setItem('bbp_pro', 'true');
+    history.replaceState({}, '', window.location.pathname);
+    setTimeout(()=> alert('Pro unlocked! Thanks, Marvin.'), 300);
+  }
+})();
+
 // PDF Generation
 document.getElementById('pdfBtn').addEventListener('click', () => {
+  if (!isPro()) { showProModal(); return; }
   const calc = calculate();
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
@@ -1098,6 +1147,29 @@ document.getElementById('pdfBtn').addEventListener('click', () => {
   const fileName = `${(companyInfo.name || 'BrickBid').replace(/\s/g, '')}_${jobTypeName.replace(/\s/g, '')}_${date.replace(/\//g, '-')}.pdf`;
   doc.save(fileName);
 });
+
+
+// Pro modal handlers
+document.getElementById('proCloseBtn')?.addEventListener('click', hideProModal);
+document.getElementById('proModal')?.addEventListener('click', (e) => { if(e.target.id === 'proModal') hideProModal(); });
+document.getElementById('proCheckoutBtn')?.addEventListener('click', () => {
+  // add ?client_reference_id so you can track who paid
+  const url = STRIPE_PAYMENT_LINK + (STRIPE_PAYMENT_LINK.includes('?') ? '&' : '?') + 'prefilled_email=';
+  window.location.href = url;
+});
+document.getElementById('proRestoreBtn')?.addEventListener('click', () => {
+  const code = prompt('Enter restore code, or if you just paid, click OK:');
+  if (code !== null) { localStorage.setItem('bbp_pro', 'true'); hideProModal(); alert('Pro restored!'); location.reload(); }
+});
+
+// Update PDF button text if Pro
+function updatePdfBtn() {
+  const btn = document.getElementById('pdfBtn');
+  if (btn) btn.innerHTML = isPro() 
+    ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> Generate PDF Quote'
+    : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg> Generate PDF Quote - Pro $9/mo';
+}
+setTimeout(updatePdfBtn, 100);
 
 // PWA - Register service worker for offline
 if ('serviceWorker' in navigator) {
